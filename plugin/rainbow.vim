@@ -48,9 +48,9 @@ let s:rainbow_conf = {
 \       },
 \       'php': {
 \           'parentheses': ['start=/\v\<((area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr)[ >])@!\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|'."'".'[^'."'".']*'."'".'|[^ '."'".'"><=`]*))?)*\>/ end=#</\z1># fold',
-                          \ 'start=/(/ end=/)/ containedin=@htmlPreproc contains=@phpClTop',
-                          \ 'start=/\[/ end=/\]/ containedin=@htmlPreproc contains=@phpClTop',
-                          \ 'start=/{/ end=/}/ containedin=@htmlPreproc contains=@phpClTop'],
+\                           'start=/(/ end=/)/ containedin=@htmlPreproc contains=@phpClTop',
+\                           'start=/\[/ end=/\]/ containedin=@htmlPreproc contains=@phpClTop',
+\                           'start=/{/ end=/}/ containedin=@htmlPreproc contains=@phpClTop'],
 \       },
 \       'css': 0,
 \   }
@@ -74,16 +74,29 @@ function! s:resolve_parenthesis(p)
     return [paren, containedin, contains, op]
 endfunction
 
-function! rainbow#load()
-    let conf = b:rainbow_conf
-    let maxlvl = has('gui_running')? len(conf.guifgs) : len(conf.ctermfgs)
-    for i in range(len(conf.parentheses))
-        let p = conf.parentheses[i]
-        if type(p) == type([])
-            let op = len(p)==3? p[1] : has_key(conf, 'operators')? conf.operators : ''
-            let conf.parentheses[i] = op != ''? printf('start=#%s# step=%s end=#%s#', p[0], op, p[-1]) : printf('start=#%s# end=#%s#', p[0], p[-1])
+function! rainbow#normalize_conf(conf)
+    let conf = deepcopy(a:conf)
+    let parens = conf.parentheses
+    for i in range(len(parens))
+        if type(parens[i]) != type([]) | continue | endif
+
+        let p = parens[i]
+        if len(p) == 3
+            let op = p[1]
+            let parens[i] = printf('start=#%s# step=%s end=#%s#', p[0], op, p[-1])
+        elseif has_key(conf, 'operators')
+            let op = conf.operators
+            let parens[i] = printf('start=#%s# step=%s end=#%s#', p[0], op, p[-1])
+        else
+            let parens[i] = printf('start=#%s# end=#%s#', p[0], p[-1])
         endif
     endfor
+    return conf
+endfunction!
+
+function! rainbow#load()
+    let conf = rainbow#normalize_conf(b:rainbow_conf)
+    let maxlvl = has('gui_running') ? len(conf.guifgs) : len(conf.ctermfgs)
     let def_rg = 'syn region %s matchgroup=%s containedin=%s contains=%s,@NoSpell %s'
     let def_op = 'syn match %s %s containedin=%s contained'
 
@@ -92,19 +105,18 @@ function! rainbow#load()
     for parenthesis_args in conf.parentheses
         let [paren, containedin, contains, op] = s:resolve_parenthesis(parenthesis_args)
         if op == '' |let op = conf.operators |endif
-        for lvl in range(maxlvl)
-            if op != '' |exe printf(def_op, 'rainbow_o'.lvl, op, 'rainbow_r'.lvl) |endif
-            if lvl == 0
-                if containedin == ''
-                    exe printf(def_rg, 'rainbow_r0', 'rainbow_p0', 'rainbow_r'.(maxlvl - 1), contains, paren)
-                endif
-            else
-                exe printf(def_rg, 'rainbow_r'.lvl, 'rainbow_p'.lvl.(' contained'), 'rainbow_r'.((lvl + maxlvl - 1) % maxlvl), contains, paren)
-            endif
-        endfor
-        if containedin != ''
-            exe printf(def_rg, 'rainbow_r0', 'rainbow_p0 contained', containedin.',rainbow_r'.(maxlvl - 1), contains, paren)
+
+        if op != '' | execute printf(def_op, 'rainbow_o0', op, 'rainbow_r0') | endif
+        if containedin == ''
+            execute printf(def_rg, 'rainbow_r0', 'rainbow_p0', 'rainbow_r'.(maxlvl - 1), contains, paren)
+        else
+            execute printf(def_rg, 'rainbow_r0', 'rainbow_p0 contained', containedin.',rainbow_r'.(maxlvl - 1), contains, paren)
         endif
+
+        for lvl in range(1, maxlvl-1)
+            if op != '' | execute printf(def_op, 'rainbow_o'.lvl, op, 'rainbow_r'.lvl) | endif
+            exe printf(def_rg, 'rainbow_r'.lvl, 'rainbow_p'.lvl.' contained', 'rainbow_r'.((lvl + maxlvl - 1) % maxlvl), contains, paren)
+        endfor
     endfor
     call rainbow#show()
 endfunction
@@ -145,23 +157,21 @@ endfunction
 function! rainbow#toggle()
     if exists('b:rainbow_loaded')
         call rainbow#clear()
+    elseif exists('b:rainbow_conf')
+        call rainbow#load()
     else
-        if exists('b:rainbow_conf')
-            call rainbow#load()
-        else
-            call rainbow#hook()
-        endif
+        call rainbow#hook()
     endif
 endfunction
 
 function! rainbow#hook()
-    let g_conf = extend(copy(s:rainbow_conf), exists('g:rainbow_conf')? g:rainbow_conf : {}) |unlet g_conf.separately
+    let g_conf = extend(copy(s:rainbow_conf), exists('g:rainbow_conf') ? g:rainbow_conf : {}) |unlet g_conf.separately
     if exists('g:rainbow_conf.separately') && has_key(g:rainbow_conf.separately, '*')
         let separately = copy(g:rainbow_conf.separately)
     else
-        let separately = extend(copy(s:rainbow_conf.separately), exists('g:rainbow_conf.separately')? g:rainbow_conf.separately : {})
+        let separately = extend(copy(s:rainbow_conf.separately), exists('g:rainbow_conf.separately') ? g:rainbow_conf.separately : {})
     endif
-    let b_conf = has_key(separately, &ft)? separately[&ft] : separately['*']
+    let b_conf = has_key(separately, &ft) ? separately[&ft] : separately['*']
     if type(b_conf) == type({})
         let b:rainbow_conf = extend(g_conf, b_conf)
         call rainbow#load()
