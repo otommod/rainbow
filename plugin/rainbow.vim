@@ -17,10 +17,11 @@
 "	:RainbowToggle		--you can use it to toggle this plugin.
 "==============================================================================
 
-if exists('s:loaded') || !(exists('g:rainbow_active') || exists('g:rainbow_conf'))
-	finish
+if exists("g:loaded_rainbow") || &cp || v:version < 700
+    finish
 endif
-let s:loaded = 1
+let g:loaded_rainbow = 1
+
 
 let s:rainbow_conf = {
 \	'guifgs': ['royalblue3', 'darkorange3', 'seagreen3', 'firebrick'],
