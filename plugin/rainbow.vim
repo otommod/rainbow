@@ -25,32 +25,39 @@ let s:rainbow_conf = {
 \   'guifgs': ['royalblue3', 'darkorange3', 'seagreen3', 'firebrick'],
 \   'ctermfgs': ['lightblue', 'lightyellow', 'lightcyan', 'lightmagenta'],
 \   'operators': '_,_',
-\   'parentheses': ['start=/(/ end=/)/ fold', 'start=/\[/ end=/\]/ fold', 'start=/{/ end=/}/ fold'],
+\   'parentheses': [{'start': '/(/',  'end': '/)/',  'fold': 1},
+\                   {'start': '/\[/', 'end': '/\]/', 'fold': 1},
+\                   {'start': '/{/',  'end': '/}/',  'fold': 1}],
 \   'separately': {
 \       '*': {},
 \       'lisp': {
 \           'guifgs': ['royalblue3', 'darkorange3', 'seagreen3', 'firebrick', 'darkorchid3'],
 \       },
 \       'tex': {
-\           'parentheses': ['start=/(/ end=/)/', 'start=/\[/ end=/\]/'],
+\           'parentheses': [['/(/', '/)/'], ['/\[/', '/\]/']],
 \       },
 \       'vim': {
-\           'parentheses': ['start=/(/ end=/)/', 'start=/\[/ end=/\]/', 'start=/{/ end=/}/ fold', 'start=/(/ end=/)/ containedin=vimFuncBody', 'start=/\[/ end=/\]/ containedin=vimFuncBody', 'start=/{/ end=/}/ fold containedin=vimFuncBody'],
+\           'parentheses': [['/(/', '/)/'], ['/\[/', '/\]/'], {'start': '/{/', 'end': '/}/', 'fold': 1},
+\                           {'start':  '/(/', 'end':  '/)/', 'containedin': 'vimFuncBody'},
+\                           {'start': '/\[/', 'end': '/\]/', 'containedin': 'vimFuncBody'},
+\                           {'start':  '/{/', 'end':  '/}/', 'containedin': 'vimFuncBody', 'fold': 1}],
 \       },
 \       'xml': {
-\           'parentheses': ['start=/\v\<\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|'."'".'[^'."'".']*'."'".'))?)*\>/ end=#</\z1># fold'],
+\           'parentheses': [{'start': '/\v\<\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|''[^'']*''))?)*\>/', 'end': '#</\z1>#', 'fold': 1}],
 \       },
 \       'xhtml': {
-\           'parentheses': ['start=/\v\<\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|'."'".'[^'."'".']*'."'".'))?)*\>/ end=#</\z1># fold'],
+\           'parentheses': [{'start': '/\v\<\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|''[^'']*''))?)*\>/', 'end': '#</\z1>#', 'fold': 1}],
 \       },
 \       'html': {
-\           'parentheses': ['start=/\v\<((area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr)[ >])@!\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|'."'".'[^'."'".']*'."'".'|[^ '."'".'"><=`]*))?)*\>/ end=#</\z1># fold'],
+\           'parentheses': [{'start': '/\v\<((area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr)[ >])@!\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|''[^'']*''|[^ ''"><=`]*))?)*\>/',
+\                            'end': '#</\z1>#', 'fold': 1}],
 \       },
 \       'php': {
-\           'parentheses': ['start=/\v\<((area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr)[ >])@!\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|'."'".'[^'."'".']*'."'".'|[^ '."'".'"><=`]*))?)*\>/ end=#</\z1># fold',
-\                           'start=/(/ end=/)/ containedin=@htmlPreproc contains=@phpClTop',
-\                           'start=/\[/ end=/\]/ containedin=@htmlPreproc contains=@phpClTop',
-\                           'start=/{/ end=/}/ containedin=@htmlPreproc contains=@phpClTop'],
+\           'parentheses': [{'start': '/\v\<((area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr)[ >])@!\z([-_:a-zA-Z0-9]+)(\s+[-_:a-zA-Z0-9]+(\=("[^"]*"|''[^'']*''|[^ ''"><=`]*))?)*\>/',
+\                            'end': '#</\z1>#', 'fold': 1},
+\                           {'start':  '/(/', 'end':  '/)/', 'containedin': '@htmlPreproc', 'contains': '@phpClTop'},
+\                           {'start': '/\[/', 'end': '/\]/', 'containedin': '@htmlPreproc', 'contains': '@phpClTop'},
+\                           {'start':  '/{/', 'end':  '/}/', 'containedin': '@htmlPreproc', 'contains': '@phpClTop'}],
 \       },
 \       'css': 0,
 \   }
