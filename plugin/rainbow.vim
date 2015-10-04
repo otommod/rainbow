@@ -56,65 +56,79 @@ let s:rainbow_conf = {
 \   }
 \}
 
-function! s:resolve_parenthesis(p)
-    let ls = split(a:p, '\v%(%(start|step|end)\=(.)%(\1@!.)*\1[^ ]*|\w+%(\=[^ ]*)?) ?\zs', 0)
-    let [paren, containedin, contains, op] = ['', '', 'TOP', '']
-    for s in ls
-        let [k, v] = [matchstr(s, '^[^=]\+\ze='), matchstr(s, '^[^=]\+=\zs.*')]
-        if k == 'step'
-            let op = v
-        elseif k == 'contains'
-            let contains = v
-        elseif k == 'containedin'
-            let containedin = v
+function! s:parse(s)
+    let confdict = {}
+    let args = split(a:s, '\v%(%(start|skip|end)\=(.)%(\1@!.)*\1[^ ]*|\w+%(\=[^ ]*)?) ?\zs', 0)
+    for a in args
+        let [key; rest] = split(a, "=", 1)
+        let val = len(rest) ? join(rest, "=") : 1
+        let confdict[key] = val
+    endfor
+    return confdict
+endfunction
+
+function! s:unparse(d)
+    let [pattern, containedin, contains] = [[], "", "TOP"]
+    for key in keys(a:d)
+        let val = a:d[key]
+        if key == "containedin"
+            let containedin = val
+        elseif key == "contains"
+            let contains = val
+
+        elseif val is 1
+            call add(pattern, key)
+        elseif val is 0
+            " pass
         else
-            let paren .= s
+            call add(pattern, key."=".val)
         endif
     endfor
-    return [paren, containedin, contains, op]
+    return [join(pattern), containedin, contains]
 endfunction
 
 function! rainbow#normalize_conf(conf)
     let conf = deepcopy(a:conf)
     let parens = conf.parentheses
     for i in range(len(parens))
-        if type(parens[i]) != type([]) | continue | endif
-
         let p = parens[i]
-        if len(p) == 3
-            let op = p[1]
-            let parens[i] = printf('start=#%s# step=%s end=#%s#', p[0], op, p[-1])
-        elseif has_key(conf, 'operators')
-            let op = conf.operators
-            let parens[i] = printf('start=#%s# step=%s end=#%s#', p[0], op, p[-1])
-        else
-            let parens[i] = printf('start=#%s# end=#%s#', p[0], p[-1])
+
+        if type(p) == type("")
+            let d = s:parse(p)
+        elseif type(p) == type([])
+            let d = {"start": printf("|%s|", p[0]),
+                   \   "end": printf("|%s|", p[-1])}
+        elseif type(p) == type({})
+            let d = copy(p)
         endif
+
+        let parens[i] = s:unparse(d)
+        unlet p
     endfor
     return conf
-endfunction!
+endfunction
 
 function! rainbow#load()
-    let conf = rainbow#normalize_conf(b:rainbow_conf)
-    let maxlvl = has('gui_running') ? len(conf.guifgs) : len(conf.ctermfgs)
     let def_rg = 'syn region %s matchgroup=%s containedin=%s contains=%s,@NoSpell %s'
     let def_op = 'syn match %s %s containedin=%s contained'
 
     call rainbow#clear()
+    let conf = rainbow#normalize_conf(b:rainbow_conf)
+    let maxlvl = has('gui_running') ? len(conf.guifgs) : len(conf.ctermfgs)
     let b:rainbow_loaded = maxlvl
-    for parenthesis_args in conf.parentheses
-        let [paren, containedin, contains, op] = s:resolve_parenthesis(parenthesis_args)
-        if op == '' |let op = conf.operators |endif
-
-        if op != '' | execute printf(def_op, 'rainbow_o0', op, 'rainbow_r0') | endif
+    for [paren, containedin, contains] in conf.parentheses
         if containedin == ''
             execute printf(def_rg, 'rainbow_r0', 'rainbow_p0', 'rainbow_r'.(maxlvl - 1), contains, paren)
         else
             execute printf(def_rg, 'rainbow_r0', 'rainbow_p0 contained', containedin.',rainbow_r'.(maxlvl - 1), contains, paren)
         endif
 
-        for lvl in range(1, maxlvl-1)
-            if op != '' | execute printf(def_op, 'rainbow_o'.lvl, op, 'rainbow_r'.lvl) | endif
+        if has_key(conf, "operators") && conf.operators != ''
+            for lvl in range(maxlvl)   " [0, 1, ..., maxlvl-1]
+                execute printf(def_op, 'rainbow_o'.lvl, conf.operators, 'rainbow_r'.lvl)
+            endfor
+        endif
+        for lvl in range(1, maxlvl-1)  " [1, 2, ..., maxlvl-1]
             exe printf(def_rg, 'rainbow_r'.lvl, 'rainbow_p'.lvl.' contained', 'rainbow_r'.((lvl + maxlvl - 1) % maxlvl), contains, paren)
         endfor
     endfor
