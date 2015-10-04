@@ -87,7 +87,7 @@ function! s:unparse(d)
     return [join(pattern), containedin, contains]
 endfunction
 
-function! rainbow#normalize_conf(conf)
+function! s:normalize_conf(conf)
     let conf = deepcopy(a:conf)
     let parens = conf.parentheses
     for i in range(len(parens))
@@ -108,95 +108,108 @@ function! rainbow#normalize_conf(conf)
     return conf
 endfunction
 
-function! rainbow#load()
-    let def_rg = 'syn region %s matchgroup=%s containedin=%s contains=%s,@NoSpell %s'
-    let def_op = 'syn match %s %s containedin=%s contained'
+function! s:make_syntax(conf)
+    let def_rg = 'syntax region %s matchgroup=%s containedin=%s contains=%s,@NoSpell %s'
+    let def_op = 'syntax match %s %s containedin=%s contained'
 
-    call rainbow#clear()
-    let conf = rainbow#normalize_conf(b:rainbow_conf)
-    let maxlvl = has('gui_running') ? len(conf.guifgs) : len(conf.ctermfgs)
-    let b:rainbow_loaded = maxlvl
-    for [paren, containedin, contains] in conf.parentheses
+    let maxlvl = has('gui_running') ? len(a:conf.guifgs) : len(a:conf.ctermfgs)
+    for [paren, containedin, contains] in a:conf.parentheses
         if containedin == ''
             execute printf(def_rg, 'rainbow_r0', 'rainbow_p0', 'rainbow_r'.(maxlvl - 1), contains, paren)
         else
             execute printf(def_rg, 'rainbow_r0', 'rainbow_p0 contained', containedin.',rainbow_r'.(maxlvl - 1), contains, paren)
         endif
 
-        if has_key(conf, "operators") && conf.operators != ''
+        if has_key(a:conf, "operators") && a:conf.operators != ''
             for lvl in range(maxlvl)   " [0, 1, ..., maxlvl-1]
-                execute printf(def_op, 'rainbow_o'.lvl, conf.operators, 'rainbow_r'.lvl)
+                execute printf(def_op, 'rainbow_o'.lvl, a:conf.operators, 'rainbow_r'.lvl)
             endfor
         endif
         for lvl in range(1, maxlvl-1)  " [1, 2, ..., maxlvl-1]
             exe printf(def_rg, 'rainbow_r'.lvl, 'rainbow_p'.lvl.' contained', 'rainbow_r'.((lvl + maxlvl - 1) % maxlvl), contains, paren)
         endfor
     endfor
-    call rainbow#show()
+    return maxlvl
 endfunction
 
-function! rainbow#clear()
-    call rainbow#hide()
-    if exists('b:rainbow_loaded')
-        for each in range(b:rainbow_loaded)
-            exe 'syn clear rainbow_r'.each
-            exe 'syn clear rainbow_o'.each
-        endfor
-        unlet b:rainbow_loaded
-    endif
-endfunction
-
-function! rainbow#show()
-    if exists('b:rainbow_loaded')
-        let b:rainbow_visible = 1
-        for id in range(b:rainbow_loaded)
-            let ctermfg = b:rainbow_conf.ctermfgs[id % len(b:rainbow_conf.ctermfgs)]
-            let guifg = b:rainbow_conf.guifgs[id % len(b:rainbow_conf.guifgs)]
-            exe 'hi default rainbow_p'.id.' ctermfg='.ctermfg.' guifg='.guifg
-            exe 'hi default rainbow_o'.id.' ctermfg='.ctermfg.' guifg='.guifg
+function! rainbow#define_colors()
+    let [guifgs, ctermfgs] = [b:rainbow_conf.guifgs, b:rainbow_conf.ctermfgs]
+    if exists('b:loaded_rainbow')
+        for lvl in range(b:loaded_rainbow)
+            let guifg = guifgs[lvl % len(guifgs)]
+            let ctermfg = ctermfgs[lvl % len(ctermfgs)]
+            execute 'highlight default rainbow_p'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
+            execute 'highlight default rainbow_o'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
         endfor
     endif
 endfunction
 
-function! rainbow#hide()
-    if exists('b:rainbow_visible')
-        for each in range(b:rainbow_loaded)
-            exe 'hi clear rainbow_p'.each
-            exe 'hi clear rainbow_o'.each
+function! rainbow#clear_colors()
+    if exists('b:loaded_rainbow')
+        for lvl in range(b:loaded_rainbow)
+            execute 'highlight clear rainbow_p'.lvl
+            execute 'highlight clear rainbow_o'.lvl
         endfor
-        unlet b:rainbow_visible
+    endif
+endfunction
+
+function! rainbow#load()
+    let g:rainbow_conf = exists('g:rainbow_conf') ? g:rainbow_conf : {}
+    let g:rainbow_conf.separately = exists('g:rainbow_conf.separately') ? g:rainbow_conf.separately : {}
+
+    let g_conf = extend(copy(s:rainbow_conf), g:rainbow_conf)
+    unlet g_conf.separately
+
+    " The user's "*" config always takes precedence over any script defined
+    " filetype specific setting.
+    if has_key(g:rainbow_conf.separately, '*')
+        let separately = copy(g:rainbow_conf.separately)
+    else
+        let separately = extend(copy(s:rainbow_conf.separately), g:rainbow_conf.separately)
+    endif
+
+    let b_conf = has_key(separately, &ft) ? separately[&ft] : separately['*']
+    if type(b_conf) != type({}) | return | endif
+
+    call rainbow#unload()
+    let b:rainbow_conf = s:normalize_conf(extend(g_conf, b_conf))
+    let b:loaded_rainbow = s:make_syntax(b:rainbow_conf)
+    call rainbow#define_colors()
+
+    augroup rainbow
+        autocmd!
+        autocmd Syntax * call rainbow#load()
+        autocmd! ColorScheme * call rainbow#define_colors()
+    augroup END
+endfunction
+
+function! rainbow#unload()
+    call rainbow#clear_colors()
+    if exists('b:loaded_rainbow')
+        for each in range(b:loaded_rainbow)
+            execute 'syntax clear rainbow_r'.each
+            execute 'syntax clear rainbow_o'.each
+        endfor
+        unlet b:loaded_rainbow
+
+        augroup rainbow
+            autocmd!
+        augroup END
     endif
 endfunction
 
 function! rainbow#toggle()
-    if exists('b:rainbow_loaded')
-        call rainbow#clear()
-    elseif exists('b:rainbow_conf')
-        call rainbow#load()
+    if exists('b:loaded_rainbow')
+        call rainbow#unload()
     else
-        call rainbow#hook()
-    endif
-endfunction
-
-function! rainbow#hook()
-    let g_conf = extend(copy(s:rainbow_conf), exists('g:rainbow_conf') ? g:rainbow_conf : {}) |unlet g_conf.separately
-    if exists('g:rainbow_conf.separately') && has_key(g:rainbow_conf.separately, '*')
-        let separately = copy(g:rainbow_conf.separately)
-    else
-        let separately = extend(copy(s:rainbow_conf.separately), exists('g:rainbow_conf.separately') ? g:rainbow_conf.separately : {})
-    endif
-    let b_conf = has_key(separately, &ft) ? separately[&ft] : separately['*']
-    if type(b_conf) == type({})
-        let b:rainbow_conf = extend(g_conf, b_conf)
         call rainbow#load()
     endif
 endfunction
 
 command! RainbowToggle call rainbow#toggle()
 command! RainbowToggleOn call rainbow#load()
-command! RainbowToggleOff call rainbow#clear()
+command! RainbowToggleOff call rainbow#unload()
 
-if (exists('g:rainbow_active') && g:rainbow_active)
-    auto syntax * call rainbow#hook()
-    auto colorscheme * call rainbow#show()
+if exists('g:rainbow_active') && g:rainbow_active
+    RainbowToggleOn
 endif
