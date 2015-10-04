@@ -15,7 +15,7 @@
 "   :RainbowToggle      --you can use it to toggle this plugin.
 "==============================================================================
 
-if exists("g:loaded_rainbow") || &cp || v:version < 700
+if exists("g:loaded_rainbow")
     finish
 endif
 let g:loaded_rainbow = 1
@@ -132,25 +132,20 @@ function! s:make_syntax(conf)
     return maxlvl
 endfunction
 
-function! rainbow#define_colors()
-    let [guifgs, ctermfgs] = [b:rainbow_conf.guifgs, b:rainbow_conf.ctermfgs]
-    if exists('b:loaded_rainbow')
-        for lvl in range(b:loaded_rainbow)
-            let guifg = guifgs[lvl % len(guifgs)]
-            let ctermfg = ctermfgs[lvl % len(ctermfgs)]
-            execute 'highlight default rainbow_p'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
-            execute 'highlight default rainbow_o'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
-        endfor
-    endif
+function! s:define_colors(levels, ctermfgs, guifgs)
+    for lvl in range(a:levels)
+        let guifg = a:guifgs[lvl % len(a:guifgs)]
+        let ctermfg = a:ctermfgs[lvl % len(a:ctermfgs)]
+        execute 'highlight default rainbow_p'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
+        execute 'highlight default rainbow_o'.lvl.' ctermfg='.ctermfg.' guifg='.guifg
+    endfor
 endfunction
 
-function! rainbow#clear_colors()
-    if exists('b:loaded_rainbow')
-        for lvl in range(b:loaded_rainbow)
-            execute 'highlight clear rainbow_p'.lvl
-            execute 'highlight clear rainbow_o'.lvl
-        endfor
-    endif
+function! s:clear_colors(levels)
+    for lvl in range(a:levels)
+        execute 'highlight clear rainbow_p'.lvl
+        execute 'highlight clear rainbow_o'.lvl
+    endfor
 endfunction
 
 function! rainbow#load()
@@ -172,23 +167,23 @@ function! rainbow#load()
     if type(b_conf) != type({}) | return | endif
 
     call rainbow#unload()
-    let b:rainbow_conf = s:normalize_conf(extend(g_conf, b_conf))
-    let b:loaded_rainbow = s:make_syntax(b:rainbow_conf)
-    call rainbow#define_colors()
+    let conf = s:normalize_conf(extend(g_conf, b_conf))
+    let b:loaded_rainbow = s:make_syntax(conf)
+    call s:define_colors(b:loaded_rainbow, conf.ctermfgs, conf.guifgs)
 
     augroup rainbow
         autocmd!
         autocmd Syntax * call rainbow#load()
-        autocmd! ColorScheme * call rainbow#define_colors()
+        autocmd ColorScheme * call rainbow#load()
     augroup END
 endfunction
 
 function! rainbow#unload()
-    call rainbow#clear_colors()
     if exists('b:loaded_rainbow')
-        for each in range(b:loaded_rainbow)
-            execute 'syntax clear rainbow_r'.each
-            execute 'syntax clear rainbow_o'.each
+        call s:clear_colors(b:loaded_rainbow)
+        for lvl in range(b:loaded_rainbow)
+            execute 'syntax clear rainbow_r'.lvl
+            execute 'syntax clear rainbow_o'.lvl
         endfor
         unlet b:loaded_rainbow
 
@@ -199,10 +194,10 @@ function! rainbow#unload()
 endfunction
 
 function! rainbow#toggle()
-    if exists('b:loaded_rainbow')
-        call rainbow#unload()
-    else
+    if !exists('b:loaded_rainbow')
         call rainbow#load()
+    else
+        call rainbow#unload()
     endif
 endfunction
 
